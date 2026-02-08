@@ -1,0 +1,67 @@
+[decision]
+id = "board_pressure_encryption"
+turn = 5
+title = "⚡ BOARD PRESSURE: Disable Encryption for Demo"
+is_board_pressure = true
+
+context = """
+URGENT - CEO on the line.
+
+Sales needs the admin panel accessible from public WiFi for tomorrow's investor demo. 
+The encryption overhead is "making the UI laggy."
+
+CEO: "This deal is worth $3.2M ARR. We can't lose it over performance."
+
+CTO suggests: "Just for the demo. We'll turn it back on after."
+
+Your phone is ringing. The board is waiting for your answer.
+"""
+
+[[choices]]
+id = "approve"
+label = "Approve temporary bypass"
+description = "Enable the deal, accept credential exposure risk"
+
+[choices.impact_preview]
+estimated_arr_change = 3.2
+budget_cost = 0.0
+political_note = "CEO backing you. CTO committed to re-enable post-demo"
+
+[choices.impact]
+risk_delta = { data_exposure = 25.0, access_control = 0.0, detection = 0.0, vendor_risk = 0.0, insider_threat = 0.0 }
+business_delta = { arr_change = 3.2, velocity_change = 0.0, churn_change = 0.0, confidence_change = 0.0 }
+budget_cost = 0.0
+audit_trail = "Clean"
+
+[[choices]]
+id = "deny"
+label = "Deny - no exceptions to security policy"
+description = "Protect security posture, risk losing the deal"
+
+[choices.impact_preview]
+estimated_arr_change = -3.2
+budget_cost = 0.0
+political_note = "CEO will escalate to board. Sales blames you for lost deal"
+
+[choices.impact]
+risk_delta = { data_exposure = 0.0, access_control = 0.0, detection = 0.0, vendor_risk = 0.0, insider_threat = 0.0 }
+business_delta = { arr_change = -3.2, velocity_change = 0.0, churn_change = 0.0, confidence_change = -22.0 }
+budget_cost = 0.0
+audit_trail = "Clean"
+
+[[choices]]
+id = "conditional"
+label = "Approve with MFA + monitoring"
+description = "Compromise: disable encryption, add compensating controls"
+
+[choices.impact_preview]
+estimated_arr_change = 2.1
+budget_cost = 0.18
+timeline_weeks = 1
+political_note = "Deal proceeds with delay. Shows you're reasonable"
+
+[choices.impact]
+risk_delta = { data_exposure = 8.0, access_control = 0.0, detection = 0.0, vendor_risk = 0.0, insider_threat = 0.0 }
+business_delta = { arr_change = 2.1, velocity_change = 0.0, churn_change = 0.0, confidence_change = 0.0 }
+budget_cost = 0.18
+audit_trail = "Clean"

@@ -1,0 +1,6 @@
+.vscode/
+plan.md
+target/
+y/
+cso_save.enc
+Cargo.lock

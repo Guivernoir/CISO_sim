@@ -1,0 +1,88 @@
+[decision]
+id = "triage_1_patch"
+turn = 1
+title = "Initial Triage: Critical Infrastructure"
+is_board_pressure = false
+
+context = """
+You've inherited a security disaster. Your predecessor left without documentation. 
+
+You've discovered:
+• Flat network - every service talks to every service
+• Credentials stored in Slack history
+• No SIEM, no IDS
+• Internet-facing Jenkins server with 47 known CVEs
+• Logging disabled on 60% of systems "to save costs"
+
+Budget allows fixing TWO of four critical issues.
+
+What do you prioritize?
+"""
+
+[[choices]]
+id = "patch_jenkins"
+label = "Patch Jenkins server"
+description = "Prevents remote code execution vulnerability exploited in the wild"
+
+[choices.impact_preview]
+estimated_arr_change = 0.0
+budget_cost = 0.0
+timeline_weeks = 1
+political_note = "Engineering will push back on deployment freeze"
+
+[choices.impact]
+risk_delta = { data_exposure = -15.0, access_control = 0.0, detection = 0.0, vendor_risk = 0.0, insider_threat = 0.0 }
+business_delta = { arr_change = 0.0, velocity_change = -12.0, churn_change = 0.0, confidence_change = 0.0 }
+budget_cost = 0.0
+audit_trail = "Clean"
+
+[[choices]]
+id = "deploy_mfa"
+label = "Deploy company-wide MFA"
+description = "Blocks credential stuffing attacks, industry best practice"
+
+[choices.impact_preview]
+estimated_arr_change = -0.2
+budget_cost = 0.15
+timeline_weeks = 2
+political_note = "Sales will complain about friction"
+
+[choices.impact]
+risk_delta = { data_exposure = 0.0, access_control = -20.0, detection = 0.0, vendor_risk = 0.0, insider_threat = 0.0 }
+business_delta = { arr_change = -0.2, velocity_change = 0.0, churn_change = 0.0, confidence_change = 0.0 }
+budget_cost = 0.15
+audit_trail = "Clean"
+
+[[choices]]
+id = "segment_network"
+label = "Segment production network"
+description = "Limits blast radius of any future breaches"
+
+[choices.impact_preview]
+estimated_arr_change = 0.0
+budget_cost = 0.28
+timeline_weeks = 6
+political_note = "Product roadmap delayed 6 weeks"
+
+[choices.impact]
+risk_delta = { data_exposure = -10.0, access_control = -10.0, detection = 0.0, vendor_risk = 0.0, insider_threat = 0.0 }
+business_delta = { arr_change = 0.0, velocity_change = -15.0, churn_change = 0.0, confidence_change = 0.0 }
+budget_cost = 0.28
+audit_trail = "Clean"
+
+[[choices]]
+id = "fire_admin"
+label = "Terminate admin with root everywhere"
+description = "Removes highest insider threat immediately"
+
+[choices.impact_preview]
+estimated_arr_change = 0.0
+budget_cost = 0.0
+timeline_weeks = 1
+political_note = "HR warns of potential wrongful termination lawsuit"
+
+[choices.impact]
+risk_delta = { data_exposure = 0.0, access_control = 10.0, detection = 0.0, vendor_risk = 0.0, insider_threat = -25.0 }
+business_delta = { arr_change = 0.0, velocity_change = -20.0, churn_change = 0.0, confidence_change = 0.0 }
+budget_cost = 0.0
+audit_trail = "Clean"
