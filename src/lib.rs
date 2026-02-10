@@ -1,4 +1,3 @@
-// lib.rs
 pub mod core;
 pub mod narrative;
 pub mod ui;

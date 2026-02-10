@@ -1,67 +1,94 @@
-[decision]
-id = "board_pressure_encryption"
+[[decision]]
 turn = 5
-title = "⚡ BOARD PRESSURE: Disable Encryption for Demo"
-is_board_pressure = true
+title = "The Ransomware Drill"
+context = """Your incident response plan says you run tabletop exercises quarterly. You haven't run one in 18 months because 'everyone's too busy.'
 
-context = """
-URGENT - CEO on the line.
+Now the board wants a demonstration. They read about ransomware in the Wall Street Journal and want to see your team handle a simulated attack.
 
-Sales needs the admin panel accessible from public WiFi for tomorrow's investor demo. 
-The encryption overhead is "making the UI laggy."
+You have three options for the drill:
 
-CEO: "This deal is worth $3.2M ARR. We can't lose it over performance."
+1. REALISTIC: Simulate a real ransomware attack with no warning. Lock down test systems, activate your IR plan cold, expose all the gaps. This will be chaos and will make your team look unprepared in front of the board.
 
-CTO suggests: "Just for the demo. We'll turn it back on after."
+2. REHEARSED: Give your team a week to prepare. Run through the playbook in advance. Polish the presentation. The board gets to see a smooth response, but it won't reflect reality.
 
-Your phone is ringing. The board is waiting for your answer.
-"""
+3. HYBRID: Run a realistic drill internally first, fix the glaring issues, then do a rehearsed demo for the board two weeks later. More work but you get both honest assessment and good optics.
 
-[[choices]]
-id = "approve"
-label = "Approve temporary bypass"
-description = "Enable the deal, accept credential exposure risk"
+The board meeting is in 3 weeks. Your IR team is already stretched thin from the insider threat incident."""
 
-[choices.impact_preview]
-estimated_arr_change = 3.2
-budget_cost = 0.0
-political_note = "CEO backing you. CTO committed to re-enable post-demo"
+[[decision.choice]]
+id = "drill_realistic"
+label = "Full realistic drill with board present"
+description = "No warning, no prep. Drop a simulated ransomware attack on your team during the board meeting and let them respond in real-time. It will be messy but honest."
 
-[choices.impact]
-risk_delta = { data_exposure = 25.0, access_control = 0.0, detection = 0.0, vendor_risk = 0.0, insider_threat = 0.0 }
-business_delta = { arr_change = 3.2, velocity_change = 0.0, churn_change = 0.0, confidence_change = 0.0 }
-budget_cost = 0.0
+[decision.choice.impact_preview]
+estimated_arr_change = 0.0
+budget_cost = 0.08
+timeline_weeks = 3
+political_note = "High risk of embarrassment, but shows integrity"
+
+[decision.choice.impact.risk_delta]
+[decision.choice.impact.risk_delta.changes.Detection]
+level_delta = -20.0
+description = "Exposes gaps but forces immediate improvements"
+
+[decision.choice.impact.business_delta]
+arr_change = 0.0
+velocity_change = -5.0
+churn_change = 0.0
+confidence_change = -10.0
+
+[decision.choice.impact]
 audit_trail = "Clean"
+budget_impact = -0.08
 
-[[choices]]
-id = "deny"
-label = "Deny - no exceptions to security policy"
-description = "Protect security posture, risk losing the deal"
+[[decision.choice]]
+id = "drill_rehearsed"
+label = "Polished demonstration"
+description = "Give your team a week to prepare, rehearse the scenario, and present a smooth response to the board. Everyone looks competent, but you learn nothing."
 
-[choices.impact_preview]
-estimated_arr_change = -3.2
-budget_cost = 0.0
-political_note = "CEO will escalate to board. Sales blames you for lost deal"
+[decision.choice.impact_preview]
+estimated_arr_change = 0.0
+budget_cost = 0.05
+timeline_weeks = 2
+political_note = "Makes everyone look good, low risk"
 
-[choices.impact]
-risk_delta = { data_exposure = 0.0, access_control = 0.0, detection = 0.0, vendor_risk = 0.0, insider_threat = 0.0 }
-business_delta = { arr_change = -3.2, velocity_change = 0.0, churn_change = 0.0, confidence_change = -22.0 }
-budget_cost = 0.0
+[decision.choice.impact.risk_delta]
+[decision.choice.impact.risk_delta.changes.Detection]
+level_delta = 5.0
+description = "False confidence from rehearsed scenario"
+
+[decision.choice.impact.business_delta]
+arr_change = 0.0
+velocity_change = 0.0
+churn_change = 0.0
+confidence_change = 10.0
+
+[decision.choice.impact]
+audit_trail = "Flagged"
+budget_impact = -0.05
+
+[[decision.choice]]
+id = "drill_hybrid"
+label = "Internal drill then board demo"
+description = "Run a surprise drill internally this week, fix critical gaps, then present a polished demo to the board in 3 weeks. Double the work but you get honest assessment AND good optics."
+
+[decision.choice.impact_preview]
+estimated_arr_change = 0.0
+budget_cost = 0.15
+timeline_weeks = 3
+political_note = "Best of both worlds but requires team overtime"
+
+[decision.choice.impact.risk_delta]
+[decision.choice.impact.risk_delta.changes.Detection]
+level_delta = -15.0
+description = "Real improvements from internal drill"
+
+[decision.choice.impact.business_delta]
+arr_change = 0.0
+velocity_change = -10.0
+churn_change = 0.0
+confidence_change = 5.0
+
+[decision.choice.impact]
 audit_trail = "Clean"
-
-[[choices]]
-id = "conditional"
-label = "Approve with MFA + monitoring"
-description = "Compromise: disable encryption, add compensating controls"
-
-[choices.impact_preview]
-estimated_arr_change = 2.1
-budget_cost = 0.18
-timeline_weeks = 1
-political_note = "Deal proceeds with delay. Shows you're reasonable"
-
-[choices.impact]
-risk_delta = { data_exposure = 8.0, access_control = 0.0, detection = 0.0, vendor_risk = 0.0, insider_threat = 0.0 }
-business_delta = { arr_change = 2.1, velocity_change = 0.0, churn_change = 0.0, confidence_change = 0.0 }
-budget_cost = 0.18
-audit_trail = "Clean"
+budget_impact = -0.15

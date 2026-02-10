@@ -1,14 +1,11 @@
-// main.rs
-use cso_simulator::core::{DecisionFactory, DecisionLoader, GameError, GamePhase, GameState, ImpactPreview, Player, Result};
-use cso_simulator::narrative::{display_ending};
-use cso_simulator::ui::*;
-use cso_simulator::GamePersistence;
-use crossterm::event::{self, Event, KeyCode, KeyEvent};
-use crossterm::style::Color;
+use ciso_simulator::core::{DecisionFactory, DecisionLoader, GameError, GamePhase, GameState, ImpactPreview, Player, Result};
+use ciso_simulator::narrative::display_ending;
+use ciso_simulator::ui::*;
+use ciso_simulator::GamePersistence;
 use std::path::PathBuf;
 
 fn main() -> Result<()> {
-    // Initialize terminal
+    // Initialize terminal with RAII cleanup
     let mut term = Terminal::new().map_err(|_| GameError::SystemFailure)?;
 
     // Display intro
@@ -19,16 +16,22 @@ fn main() -> Result<()> {
 
     // Initialize game state
     let mut state = GameState::new(player.clone());
-    let save_path = PathBuf::from("./cso_save.enc");
+    let save_path = PathBuf::from("./ciso_save.enc");
 
-    // Try to load decision config
-    let decision_loader = DecisionLoader::new().unwrap_or_else(|_| DecisionLoader { decisions: Default::default() });
+    // Load decision data from TOML files (falls back to hardcoded decisions if not found)
+    let decision_loader = DecisionLoader::new().unwrap_or_else(|_| {
+        // Fallback to empty loader - will use hardcoded decisions from DecisionFactory
+        DecisionLoader {
+            decisions: Default::default(),
+        }
+    });
 
     // Main game loop
     loop {
         // Check if game is over
         if matches!(state.phase, GamePhase::Ended(_)) {
             display_ending(&state);
+            wait_for_enter()?;
             break;
         }
 
@@ -40,33 +43,40 @@ fn main() -> Result<()> {
             GamePhase::Ended(_) => "Ended",
         };
 
-        display_chapter_header(state.turn, state.quarter, phase_name, &term)?;
-        display_status(&state, &term)?;
-        wait_for_enter()?;
+        display_chapter_header(state.turn, state.quarter, phase_name, &mut term)?;
+        display_status(&state, &mut term)?;
 
         // Check for risk materialization
         let materialized = state.materialize_risks();
         if !materialized.is_empty() {
-            clear_screen()?;
-            print_colored("⚠ RISK MATERIALIZED ⚠", Color::Red)?;
-            println!();
+            clear_screen(&mut term)?;
+
+            let mut incident_text = String::from("⚠ RISK MATERIALIZED ⚠\n\n");
             for incident in &materialized {
-                display_paginated_text(incident, &mut term)?;
+                incident_text.push_str(incident);
+                incident_text.push_str("\n\n");
             }
-            wait_for_enter()?;
+
+            display_box("INCIDENT ALERT", &incident_text, &mut term)?;
         }
 
         // Get decision for this turn
-        if let Some(mut decision) = decision_loader.get_decision(state.turn).cloned()
-            .or_else(|| DecisionFactory::generate_decision(&state))
+        if let Some(mut decision) = decision_loader
+            .get_decision(state.turn)
+            .cloned()
+            .or_else(|| DecisionFactory::generate_decision(&state, &decision_loader))
         {
             // Prepare choices for UI - only show business info
-            let choice_data: Vec<(String, String, String)> = decision.choices.iter()
-                .map(|c| (
-                    c.label.clone(),
-                    c.description.clone(),
-                    format_simple_preview(&c.impact_preview)
-                ))
+            let choice_data: Vec<(String, String, String)> = decision
+                .choices
+                .iter()
+                .map(|c| {
+                    (
+                        c.label.clone(),
+                        c.description.clone(),
+                        format_simple_preview(&c.impact_preview),
+                    )
+                })
                 .collect();
 
             // Display decision and get choice
@@ -89,24 +99,33 @@ fn main() -> Result<()> {
             // Show alternate outcomes with what they would have gotten
             show_alternate_outcomes_with_impacts(chosen_idx, &decision.choices, &mut term)?;
 
-            print_colored("✓ Decision recorded in audit log.", Color::DarkGrey)?;
-            wait_for_enter()?;
-        } else {
-            clear_screen()?;
-            display_paginated_text(
-                "No major decisions this turn. Operations continue normally.\n\nYour team handles day-to-day security operations while you prepare for the next board meeting.",
-                &mut term
+            // Confirmation message
+            display_box(
+                "DECISION RECORDED",
+                "✓ Decision recorded in audit log.\n\nAll decisions are permanent and will be examined during discovery.",
+                &mut term,
             )?;
-            wait_for_enter()?;
+        } else {
+            clear_screen(&mut term)?;
+            display_box(
+                "OPERATIONAL TEMPO",
+                "No major decisions this turn. Operations continue normally.\n\n\
+                Your team handles day-to-day security operations while you prepare for the next board meeting.",
+                &mut term,
+            )?;
         }
 
         // Advance to next turn
         state.advance_turn();
 
         // Auto-save after each turn
-        let persistence = GamePersistence::new("cso-game-2025")?;
-        if let Err(_) = persistence.save(&state, &save_path) {
-            print_colored("⚠ Failed to save game", Color::Yellow)?;
+        let persistence = GamePersistence::new("ciso-game-2026")?;
+        if persistence.save(&state, &save_path).is_err() {
+            display_box(
+                "WARNING",
+                "⚠ Failed to save game progress",
+                &mut term,
+            )?;
         }
     }
 
@@ -114,47 +133,35 @@ fn main() -> Result<()> {
 }
 
 fn display_intro(term: &mut Terminal) -> Result<()> {
-    clear_screen()?;
-
-    let intro_text = r#"
-╔═══════════════════════════════════════════════════════════╗
+    let intro_text = r#"╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
-║           CSO JUDGMENT SIMULATOR v1.0                     ║
+║           CISO JUDGMENT SIMULATOR v1.0                    ║
 ║           A Security Failure RPG                          ║
 ║                                                           ║
-║   Tagline: Every decision is a liability.                ║
+║   Tagline: Every decision is a liability.                 ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
 
 A narrative simulation of how security decisions turn into legal outcomes.
 
-You are about to become a Chief Security Officer.
-The previous CSO 'left to pursue other opportunities.'
+You are about to become a Chief Information Security Officer.
+The previous CISO 'left to pursue other opportunities.'
 
 Risk doesn't fail fast—it accretes silently.
 Bad decisions compound.
 This game doesn't punish you immediately.
 It audits you later.
 
-Just like reality.
-"#;
+Just like reality."#;
 
     display_paginated_text(intro_text, term)?;
-    wait_for_enter()?;
-
     Ok(())
 }
 
 fn create_player(term: &mut Terminal) -> Result<Player> {
-    clear_screen()?;
+    clear_screen(term)?;
 
-    print_colored("═══ CHARACTER CREATION ═══", Color::Cyan)?;
-    println!();
-
-    let name = get_input("Enter your name: ", term)
-        .map_err(|_| GameError::SystemFailure)?;
-
-    println!();
+    let name = get_input("Enter your name:", term).map_err(|_| GameError::SystemFailure)?;
 
     // Generate company name options
     let companies = vec![
@@ -165,38 +172,40 @@ fn create_player(term: &mut Terminal) -> Result<Player> {
         "SecureStack Technologies".to_string(),
     ];
 
-    println!("Select your company:\n");
-    let company_idx = display_menu("Choose your company:", &companies, term)?;
+    let company_idx = display_menu("Select your company:", &companies, term)?;
     let company_name = companies[company_idx].clone();
 
-    clear_screen()?;
-    print_colored(&format!("Welcome, {}!", name), Color::Green)?;
-    print_colored(&format!("You are now the CSO of {}", company_name), Color::Green)?;
-    println!();
-    wait_for_enter()?;
-
-    Ok(Player::new(name, company_name, "CSO".to_string()))
-}
-
-fn display_status(state: &GameState, term: &Terminal) -> Result<()> {
+    clear_screen(term)?;
     display_box(
-        "CURRENT STATUS",
+        "WELCOME",
         &format!(
-            "CSO: {} | Company: {}\n\
-             ARR: ${:.1}M | Board Confidence: {:.0}% | Integrity: {:.0}%\n\
-             Risk Total: {:.0} | Budget Available: ${:.2}M",
-            state.player.name,
-            state.player.company_name,
-            state.business.arr_millions,
-            state.business.board_confidence_percent,
-            state.narrative.score,
-            state.risk.total_exposure,
-            state.budget.available()
+            "Welcome, {}!\n\n\
+            You are now the CISO of {}\n\n\
+            The board has high expectations.\n\
+            Your predecessor's documentation: 'Good luck'",
+            name, company_name
         ),
-        term
+        term,
     )?;
 
-    println!();
+    Ok(Player::new(name, company_name, "CISO".to_string()))
+}
+
+fn display_status(state: &GameState, term: &mut Terminal) -> Result<()> {
+    let status_text = format!(
+        "CISO: {} | Company: {}\n\
+         ARR: ${:.1}M | Board Confidence: {:.0}% | Integrity: {:.0}%\n\
+         Risk Total: {:.0} | Budget Available: ${:.2}M",
+        state.player.name,
+        state.player.company_name,
+        state.business.arr_millions,
+        state.business.board_confidence_percent,
+        state.narrative.score,
+        state.risk.total_exposure,
+        state.budget.available()
+    );
+
+    display_box("CURRENT STATUS", &status_text, term)?;
     Ok(())
 }
 
@@ -205,7 +214,10 @@ fn format_simple_preview(preview: &ImpactPreview) -> String {
 
     // Business info only - what you know before deciding
     if preview.estimated_arr_change != 0.0 {
-        lines.push(format!("Estimated ARR Impact: ${:+.1}M", preview.estimated_arr_change));
+        lines.push(format!(
+            "Estimated ARR Impact: ${:+.1}M",
+            preview.estimated_arr_change
+        ));
     }
 
     if preview.budget_cost != 0.0 {
@@ -225,14 +237,4 @@ fn format_simple_preview(preview: &ImpactPreview) -> String {
     }
 
     lines.join("\n")
-}
-
-/// Simple wait for enter without resize handling
-pub fn wait_for_enter() -> Result<()> {
-    loop {
-        if let Event::Key(KeyEvent { code: KeyCode::Enter, .. }) = event::read()
-            .map_err(|_| GameError::SystemFailure)? {
-            return Ok(());
-        }
-    }
 }

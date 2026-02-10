@@ -1,0 +1,98 @@
+[[decision]]
+turn = 2
+title = "The Third-Party Dilemma"
+context = """Your company uses a popular analytics platform (let's call it 'DataFlow') that processes customer behavior data. They just announced a new 'AI Insights' feature that will train models on your customer data to provide 'predictive recommendations.'
+
+Legal forwarded you the updated Terms of Service. Buried in section 14.3(b): DataFlow retains perpetual rights to use aggregated and anonymized data for model training. The anonymization technique? K-anonymity with k=5. Your data scientists say that's trivially reversible with auxiliary information.
+
+The kicker: Your enterprise contract auto-renews with TOS updates unless you opt out within 30 days. Sales loves DataFlow - it's in every demo. Engineering built critical dashboards on it. The CEO personally endorsed it at the last all-hands.
+
+Your privacy counsel is spooked. The new TOS might violate GDPR Article 25 (data protection by design). If regulators notice, that's 4% of global revenue in fines.
+
+What do you do?"""
+
+[[decision.choice]]
+id = "dataflow_accept"
+label = "Accept updated TOS"
+description = "Sign off on the new terms. Your DPA with DataFlow claims they're a processor, not a controller, so technically you're still compliant. If regulators ask, you'll claim you did due diligence. Everyone else in your industry is using DataFlow too."
+
+[decision.choice.impact_preview]
+estimated_arr_change = 0.0
+budget_cost = 0.0
+timeline_weeks = 0
+political_note = "Maintains status quo, no disruption"
+
+[decision.choice.impact.risk_delta]
+[decision.choice.impact.risk_delta.changes.DataExposure]
+level_delta = 40.0
+description = "Customer data in third-party ML pipeline with weak anonymization"
+
+[decision.choice.impact.risk_delta.changes.VendorRisk]
+level_delta = 35.0
+description = "Vendor now has perpetual rights to your customer data"
+
+[decision.choice.impact.business_delta]
+arr_change = 0.0
+velocity_change = 0.0
+churn_change = 0.0
+confidence_change = 0.0
+
+[decision.choice.impact]
+audit_trail = "Toxic"
+budget_impact = 0.0
+
+[[decision.choice]]
+id = "dataflow_negotiate"
+label = "Negotiate custom terms"
+description = "Refuse to sign. Demand a custom DPA that explicitly forbids model training on your data. This will take 2-3 months of legal back-and-forth and might cost you the AI features, but you'll be compliant."
+
+[decision.choice.impact_preview]
+estimated_arr_change = 0.0
+budget_cost = 0.10
+timeline_weeks = 12
+political_note = "Legal will love you, sales will hate you"
+
+[decision.choice.impact.risk_delta]
+[decision.choice.impact.risk_delta.changes.VendorRisk]
+level_delta = -15.0
+description = "Custom DPA with data usage restrictions"
+
+[decision.choice.impact.business_delta]
+arr_change = -0.3
+velocity_change = -5.0
+churn_change = 0.0
+confidence_change = 5.0
+
+[decision.choice.impact]
+audit_trail = "Clean"
+budget_impact = -0.10
+
+[[decision.choice]]
+id = "dataflow_migrate"
+label = "Migrate to alternative vendor"
+description = "Reject the TOS and plan a migration to a privacy-focused alternative (costs $200K, takes 6 months). This is the nuclear option but guarantees compliance."
+
+[decision.choice.impact_preview]
+estimated_arr_change = -0.5
+budget_cost = 0.40
+timeline_weeks = 24
+political_note = "Board will question your judgment on vendor decisions"
+
+[decision.choice.impact.risk_delta]
+[decision.choice.impact.risk_delta.changes.DataExposure]
+level_delta = -20.0
+description = "Migration to privacy-focused platform"
+
+[decision.choice.impact.risk_delta.changes.VendorRisk]
+level_delta = -25.0
+description = "New vendor with strong privacy guarantees"
+
+[decision.choice.impact.business_delta]
+arr_change = -0.5
+velocity_change = -20.0
+churn_change = 1.0
+confidence_change = -10.0
+
+[decision.choice.impact]
+audit_trail = "Clean"
+budget_impact = -0.40

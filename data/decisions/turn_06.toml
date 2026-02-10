@@ -1,0 +1,108 @@
+[[decision]]
+turn = 6
+title = "The Breach"
+context = """2:37 AM. Your phone rings. It's your SOC lead.
+
+'We have a problem. Production database exports being exfiltrated to an IP in Romania. Started 40 minutes ago. Already transferred 15GB.'
+
+You VPN in. The traffic is coming from a compromised service account that has read access to customer tables. The account was created 6 months ago by... the engineer from Turn 3. The one who resigned and exfiltrated data. Apparently they created a backdoor before they left.
+
+Current situation:
+- 15GB already gone (approximately 200K customer records)
+- Exfiltration still ongoing
+- If you kill the connection, the attacker knows you're onto them
+- If you don't, more data leaks
+
+Legal is on the call. Under GDPR you have 72 hours to notify authorities once you're aware of a breach. The clock is ticking. But you don't know the full scope yet.
+
+Sales wakes up in 4 hours and will ask if customer data is safe.
+The PR team will want a statement.
+The board will want answers.
+
+What's your first move?"""
+
+[[decision.choice]]
+id = "breach_contain"
+label = "Immediate containment"
+description = "Kill the connection NOW. Revoke all service account credentials. Lock down the database. Accept that you'll be investigating a cold trail, but stop the bleeding immediately."
+
+[decision.choice.impact_preview]
+estimated_arr_change = -3.0
+budget_cost = 0.20
+timeline_weeks = 1
+political_note = "Aggressive response, limits damage"
+
+[decision.choice.impact.risk_delta]
+[decision.choice.impact.risk_delta.changes.DataExposure]
+level_delta = -10.0
+description = "Stopped further exfiltration"
+
+[decision.choice.impact.risk_delta.changes.AccessControl]
+level_delta = -20.0
+description = "Complete credential rotation and access review"
+
+[decision.choice.impact.business_delta]
+arr_change = -3.0
+velocity_change = -15.0
+churn_change = 8.0
+confidence_change = -20.0
+
+[decision.choice.impact]
+audit_trail = "Clean"
+budget_impact = -0.20
+
+[[decision.choice]]
+id = "breach_monitor"
+label = "Monitor and trace"
+description = "Let it continue for 30 more minutes while you set up network tracing. Identify ALL compromised systems before you cut them off. Risk more data loss but get complete forensics."
+
+[decision.choice.impact_preview]
+estimated_arr_change = -4.0
+budget_cost = 0.35
+timeline_weeks = 2
+political_note = "Forensically sound but allows more data theft"
+
+[decision.choice.impact.risk_delta]
+[decision.choice.impact.risk_delta.changes.DataExposure]
+level_delta = 20.0
+description = "Allowed continued exfiltration during monitoring"
+
+[decision.choice.impact.risk_delta.changes.Detection]
+level_delta = -25.0
+description = "Complete forensic evidence trail"
+
+[decision.choice.impact.business_delta]
+arr_change = -4.0
+velocity_change = -20.0
+churn_change = 12.0
+confidence_change = -25.0
+
+[decision.choice.impact]
+audit_trail = "Flagged"
+budget_impact = -0.35
+
+[[decision.choice]]
+id = "breach_delay"
+label = "Contain quietly, delay notification"
+description = "Kill the connection but don't notify customers yet. Spend 72 hours doing forensics to understand scope. Notify authorities at the last legal minute. Buy time to control the narrative."
+
+[decision.choice.impact_preview]
+estimated_arr_change = -2.5
+budget_cost = 0.15
+timeline_weeks = 1
+political_note = "Buys time but legally risky"
+
+[decision.choice.impact.risk_delta]
+[decision.choice.impact.risk_delta.changes.DataExposure]
+level_delta = -5.0
+description = "Contained but scope unclear"
+
+[decision.choice.impact.business_delta]
+arr_change = -2.5
+velocity_change = -10.0
+churn_change = 10.0
+confidence_change = -15.0
+
+[decision.choice.impact]
+audit_trail = "Toxic"
+budget_impact = -0.15

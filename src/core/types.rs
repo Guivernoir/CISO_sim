@@ -503,7 +503,7 @@ impl SecurityTeam {
             role: SecurityRole::SecurityEngineer,
             skill_level: 75.0,
             capacity: 10.0,
-            burnout_level: 60.0,  // Already burned out from previous CSO
+            burnout_level: 60.0,  // Already burned out from previous CISO
             tenure_turns: 8,
         });
         members.push(TeamMember {
@@ -625,7 +625,7 @@ impl ComplianceStatus {
         
         // You need SOC2 to sell to enterprises
         frameworks.insert(ComplianceFramework::SOC2, FrameworkStatus {
-            compliance_percent: 40.0,  // Previous CSO let it slip
+            compliance_percent: 40.0,  // Previous CISO let it slip
             certification_date: None,
             next_audit: 8,  // Audit in 8 turns
             control_gaps: vec![

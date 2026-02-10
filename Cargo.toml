@@ -1,11 +1,11 @@
 [package]
-name = "cso-simulator"
+name = "ciso-simulator"
 version = "1.0.0"
 edition = "2024"
 authors = ["Guilherme F. G. Santos <strukturaenterprise@gmail.com>"]
 description = "A narrative simulation of how security decisions turn into legal outcomes"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/Guivernoir/cso-simulator"
+repository = "https://github.com/Guivernoir/ciso-simulator"
 keywords = ["security", "simulation", "governance", "risk-management"]
 categories = ["games", "simulation"]
 
@@ -35,6 +35,7 @@ textwrap = "0.16.2"
 console = "0.16.2"
 argon2 = "0.5.3"
 rand = "0.8.5"
+ratatui = "0.30.0"
 
 [profile.release]
 opt-level = 3
@@ -46,5 +47,5 @@ strip = true
 opt-level = 0
 
 [[bin]]
-name = "cso-sim"
+name = "ciso-sim"
 path = "src/main.rs"

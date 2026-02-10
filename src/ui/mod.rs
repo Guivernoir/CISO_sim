@@ -1,500 +1,789 @@
 use crossterm::{
-    cursor,
-    event::{self, Event, KeyCode, KeyEvent},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind},
     execute,
-    style::{Color, Print, ResetColor, SetForegroundColor},
-    terminal::{self, ClearType},
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use std::io::{self, Write};
+use ratatui::{
+    backend::{Backend, CrosstermBackend},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    style::{Color, Modifier, Style, Stylize},
+    text::{Line, Span, Text},
+    widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
+    Frame, Terminal as RatatuiTerminal,
+};
+use std::io;
 use textwrap::wrap;
 
 // Import types needed for the UI logic
-use crate::core::types::{RiskVector, DecisionImpact};
+use crate::core::decisions::Choice;
+use crate::core::types::{DecisionImpact, RiskVector};
 
-#[derive(Debug)]
+/// RAII Terminal wrapper - ensures cleanup on drop
 pub struct Terminal {
-    width: u16,
-    height: u16,
+    terminal: RatatuiTerminal<CrosstermBackend<io::Stdout>>,
 }
 
 impl Terminal {
     pub fn new() -> io::Result<Self> {
-        let (width, height) = terminal::size()?;
-        Ok(Self { width, height })
+        enable_raw_mode()?;
+        let mut stdout = io::stdout();
+        execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+        let backend = CrosstermBackend::new(stdout);
+        let terminal = RatatuiTerminal::new(backend)?;
+
+        Ok(Self { terminal })
     }
 
     pub fn width(&self) -> usize {
-        self.width as usize
+        self.terminal.size().map(|s| s.width as usize).unwrap_or(80)
     }
 
     pub fn height(&self) -> usize {
-        self.height as usize
+        self.terminal
+            .size()
+            .map(|s| s.height as usize)
+            .unwrap_or(24)
     }
 
-    pub fn update_size(&mut self, width: u16, height: u16) {
-        self.width = width;
-        self.height = height;
+    /// Draw a frame with the given render function
+    fn draw<F>(&mut self, f: F) -> io::Result<()>
+    where
+        F: FnOnce(&mut Frame),
+    {
+        self.terminal.draw(f)?;
+        Ok(())
+    }
+
+    /// Clear the screen
+    pub fn clear(&mut self) -> io::Result<()> {
+        self.terminal.clear()
     }
 }
 
-/// Enum to represent wait results for handling resizes during pauses
-#[derive(Debug, PartialEq)]
-enum WaitResult {
-    Continue,
-    Resized,
+impl Drop for Terminal {
+    fn drop(&mut self) {
+        // Always cleanup, even on panic
+        let _ = disable_raw_mode();
+        let _ = execute!(
+            self.terminal.backend_mut(),
+            LeaveAlternateScreen,
+            DisableMouseCapture
+        );
+        let _ = self.terminal.show_cursor();
+    }
 }
 
-/// Display paginated text that user can advance with Enter.
-/// Handles terminal resizes by redrawing the current page.
+/// Wait for Enter key press with proper event filtering
+pub fn wait_for_enter() -> io::Result<()> {
+    loop {
+        if let Event::Key(KeyEvent {
+            code: KeyCode::Enter,
+            kind: KeyEventKind::Press,
+            ..
+        }) = event::read()?
+        {
+            return Ok(());
+        }
+    }
+}
+
+/// Display paginated text with proper scrolling
 pub fn display_paginated_text(text: &str, term: &mut Terminal) -> io::Result<()> {
-    terminal::enable_raw_mode()?;
-
-    let mut page = 0;
-    let mut total_pages;
+    let mut scroll: u16 = 0;
 
     loop {
-        clear_screen()?;
+        let size = term.terminal.size()?;
+        let max_scroll = text.lines().count().saturating_sub(size.height as usize - 4);
 
-        let wrapped = wrap(text, term.width() - 4);
-        let lines: Vec<&str> = wrapped.iter().map(|s| s.as_ref()).collect();
+        term.draw(|f| {
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Min(1), Constraint::Length(3)])
+                .split(f.area());
 
-        let lines_per_page = term.height() - 3; // Reserve space for prompt
-        total_pages = (lines.len() + lines_per_page as usize - 1) / lines_per_page as usize;
+            // Content area
+            let paragraph = Paragraph::new(text)
+                .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(Color::Cyan)))
+                .scroll((scroll, 0))
+                .wrap(Wrap { trim: true });
 
-        if page >= total_pages {
-            break;
-        }
+            f.render_widget(paragraph, chunks[0]);
 
-        let start = page * lines_per_page as usize;
-        let end = std::cmp::min(start + lines_per_page as usize, lines.len());
+            // Help text
+            let help_text = if scroll < max_scroll as u16 {
+                "↑↓ to scroll | Enter to continue | q to quit"
+            } else {
+                "Enter to continue | q to quit"
+            };
 
-        for line in &lines[start..end] {
-            println!("{}", line);
-        }
+            let help = Paragraph::new(help_text)
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(Color::DarkGray));
 
-        println!();
-        if page < total_pages - 1 {
-            print_colored("Press Enter to continue...", Color::DarkGrey)?;
-            io::stdout().flush()?;
+            f.render_widget(help, chunks[1]);
+        })?;
 
-            if wait_for_enter(term)? == WaitResult::Resized {
-                continue; // Redraw current page on resize
+        // Handle input
+        match event::read()? {
+            Event::Key(KeyEvent {
+                code: KeyCode::Enter,
+                kind: KeyEventKind::Press,
+                ..
+            }) => break,
+            Event::Key(KeyEvent {
+                code: KeyCode::Char('q'),
+                kind: KeyEventKind::Press,
+                ..
+            }) => break,
+            Event::Key(KeyEvent {
+                code: KeyCode::Up,
+                kind: KeyEventKind::Press,
+                ..
+            }) => {
+                scroll = scroll.saturating_sub(1);
             }
-        } else {
-            break;
+            Event::Key(KeyEvent {
+                code: KeyCode::Down,
+                kind: KeyEventKind::Press,
+                ..
+            }) => {
+                if (scroll as usize) < max_scroll {
+                    scroll += 1;
+                }
+            }
+            Event::Key(KeyEvent {
+                code: KeyCode::PageUp,
+                kind: KeyEventKind::Press,
+                ..
+            }) => {
+                scroll = scroll.saturating_sub(10);
+            }
+            Event::Key(KeyEvent {
+                code: KeyCode::PageDown,
+                kind: KeyEventKind::Press,
+                ..
+            }) => {
+                scroll = (scroll + 10).min(max_scroll as u16);
+            }
+            _ => {}
         }
-
-        page += 1;
     }
 
-    terminal::disable_raw_mode()?;
     Ok(())
 }
 
-/// Get string input from user with event-based handling for better control.
-/// Supports backspace and handles resizes without interrupting input.
+/// Get string input from user with proper echo and editing
 pub fn get_input(prompt: &str, term: &mut Terminal) -> io::Result<String> {
-    terminal::enable_raw_mode()?;
-
-    print!("{}", prompt);
-    io::stdout().flush()?;
-
     let mut input = String::new();
-    let mut cursor_pos = 0;
 
     loop {
-        match event::read()? {
-            Event::Key(KeyEvent { code, .. }) => {
-                match code {
-                    KeyCode::Enter => {
-                        println!();
-                        break;
-                    }
-                    KeyCode::Backspace => {
-                        if cursor_pos > 0 {
-                            input.remove(cursor_pos - 1);
-                            cursor_pos -= 1;
-                            execute!(
-                                io::stdout(),
-                                cursor::MoveLeft(1),
-                                terminal::Clear(ClearType::FromCursorDown)
-                            )?;
-                            print!("{}", &input[cursor_pos..]);
-                            execute!(io::stdout(), cursor::MoveLeft((input.len() - cursor_pos) as u16))?;
-                        }
-                    }
-                    KeyCode::Char(c) => {
-                        input.insert(cursor_pos, c);
-                        cursor_pos += 1;
-                        print!("{}", &input[cursor_pos - 1..]);
-                        execute!(io::stdout(), cursor::MoveLeft((input.len() - cursor_pos) as u16))?;
-                        io::stdout().flush()?;
-                    }
-                    KeyCode::Left => {
-                        if cursor_pos > 0 {
-                            cursor_pos -= 1;
-                            execute!(io::stdout(), cursor::MoveLeft(1))?;
-                        }
-                    }
-                    KeyCode::Right => {
-                        if cursor_pos < input.len() {
-                            cursor_pos += 1;
-                            execute!(io::stdout(), cursor::MoveRight(1))?;
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            Event::Resize(w, h) => {
-                term.update_size(w, h);
-                // Redraw prompt and current input on resize
-                clear_screen()?;
-                print!("{}{}", prompt, input);
-                execute!(io::stdout(), cursor::MoveLeft((input.len() - cursor_pos) as u16))?;
-                io::stdout().flush()?;
-            }
-            _ => {}
-        }
-    }
+        term.draw(|f| {
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Length(3),
+                    Constraint::Length(3),
+                    Constraint::Min(1),
+                ])
+                .split(f.area());
 
-    terminal::disable_raw_mode()?;
-    Ok(input.trim().to_string())
-}
+            // Prompt
+            let prompt_widget = Paragraph::new(prompt)
+                .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(Color::Cyan)))
+                .style(Style::default().fg(Color::White));
 
-/// Display menu with arrow key navigation.
-/// Handles resizes by redrawing immediately.
-pub fn display_menu(title: &str, options: &[String], term: &mut Terminal) -> io::Result<usize> {
-    terminal::enable_raw_mode()?;
+            f.render_widget(prompt_widget, chunks[0]);
 
-    let mut selected = 0;
+            // Input field
+            let input_widget = Paragraph::new(input.as_str())
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_style(Style::default().fg(Color::Green)),
+                )
+                .style(Style::default().fg(Color::Yellow));
 
-    loop {
-        clear_screen()?;
+            f.render_widget(input_widget, chunks[1]);
 
-        // Display title
-        println!("{}", title);
-        println!();
+            // Help
+            let help = Paragraph::new("Enter to submit | Backspace to delete")
+                .style(Style::default().fg(Color::DarkGray))
+                .alignment(Alignment::Center);
 
-        // Display options
-        for (idx, option) in options.iter().enumerate() {
-            if idx == selected {
-                print_colored(&format!("▶ {}", option), Color::Cyan)?;
-            } else {
-                println!("  {}", option);
-            }
-        }
-
-        println!();
-        print_colored("Use ↑↓ arrows to navigate, Enter to select", Color::DarkGrey)?;
-        io::stdout().flush()?;
+            f.render_widget(help, chunks[2]);
+        })?;
 
         // Handle input
         match event::read()? {
-            Event::Key(KeyEvent { code, .. }) => {
-                match code {
-                    KeyCode::Up => {
-                        if selected > 0 {
-                            selected -= 1;
-                        }
-                    }
-                    KeyCode::Down => {
-                        if selected < options.len() - 1 {
-                            selected += 1;
-                        }
-                    }
-                    KeyCode::Enter => {
-                        break;
-                    }
-                    KeyCode::Char('q') | KeyCode::Esc => {
-                        break;
-                    }
-                    _ => {}
+            Event::Key(KeyEvent {
+                code: KeyCode::Enter,
+                kind: KeyEventKind::Press,
+                ..
+            }) => {
+                if !input.is_empty() {
+                    break;
                 }
             }
-            Event::Resize(w, h) => {
-                term.update_size(w, h);
-                // Loop will redraw
+            Event::Key(KeyEvent {
+                code: KeyCode::Backspace,
+                kind: KeyEventKind::Press,
+                ..
+            }) => {
+                input.pop();
+            }
+            Event::Key(KeyEvent {
+                code: KeyCode::Char(c),
+                kind: KeyEventKind::Press,
+                ..
+            }) => {
+                input.push(c);
+            }
+            Event::Key(KeyEvent {
+                code: KeyCode::Esc,
+                kind: KeyEventKind::Press,
+                ..
+            }) => {
+                input.clear();
+                break;
             }
             _ => {}
         }
     }
 
-    terminal::disable_raw_mode()?;
-    Ok(selected)
+    Ok(input)
 }
 
-/// Display decision with minimal preview (only business info).
-/// Handles resizes by redrawing the entire menu.
+/// Display menu with arrow key navigation
+pub fn display_menu(title: &str, options: &[String], term: &mut Terminal) -> io::Result<usize> {
+    let mut list_state = ListState::default();
+    list_state.select(Some(0));
+
+    loop {
+        term.draw(|f| {
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Length(3), Constraint::Min(1), Constraint::Length(3)])
+                .split(f.area());
+
+            // Title
+            let title_widget = Paragraph::new(title)
+                .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(Color::Cyan)))
+                .style(Style::default().fg(Color::White).add_modifier(Modifier::BOLD))
+                .alignment(Alignment::Center);
+
+            f.render_widget(title_widget, chunks[0]);
+
+            // Options list
+            let items: Vec<ListItem> = options
+                .iter()
+                .map(|opt| ListItem::new(opt.as_str()))
+                .collect();
+
+            let list = List::new(items)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_style(Style::default().fg(Color::Green)),
+                )
+                .highlight_style(
+                    Style::default()
+                        .bg(Color::Cyan)
+                        .fg(Color::Black)
+                        .add_modifier(Modifier::BOLD),
+                )
+                .highlight_symbol("▶ ");
+
+            f.render_stateful_widget(list, chunks[1], &mut list_state);
+
+            // Help text
+            let help = Paragraph::new("↑↓ to navigate | Enter to select | q to quit")
+                .style(Style::default().fg(Color::DarkGray))
+                .alignment(Alignment::Center);
+
+            f.render_widget(help, chunks[2]);
+        })?;
+
+        // Handle input
+        match event::read()? {
+            Event::Key(KeyEvent {
+                code: KeyCode::Up,
+                kind: KeyEventKind::Press,
+                ..
+            }) => {
+                let i = match list_state.selected() {
+                    Some(i) => {
+                        if i == 0 {
+                            options.len() - 1
+                        } else {
+                            i - 1
+                        }
+                    }
+                    None => 0,
+                };
+                list_state.select(Some(i));
+            }
+            Event::Key(KeyEvent {
+                code: KeyCode::Down,
+                kind: KeyEventKind::Press,
+                ..
+            }) => {
+                let i = match list_state.selected() {
+                    Some(i) => {
+                        if i >= options.len() - 1 {
+                            0
+                        } else {
+                            i + 1
+                        }
+                    }
+                    None => 0,
+                };
+                list_state.select(Some(i));
+            }
+            Event::Key(KeyEvent {
+                code: KeyCode::Enter,
+                kind: KeyEventKind::Press,
+                ..
+            }) => {
+                return Ok(list_state.selected().unwrap_or(0));
+            }
+            Event::Key(KeyEvent {
+                code: KeyCode::Char('q') | KeyCode::Esc,
+                kind: KeyEventKind::Press,
+                ..
+            }) => {
+                return Ok(list_state.selected().unwrap_or(0));
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Display decision menu with preview panel
 pub fn display_decision_menu(
     title: &str,
     context: &str,
-    choices: &[(String, String, String)], // (label, description, simple_preview)
+    choices: &[(String, String, String)],
     term: &mut Terminal,
 ) -> io::Result<usize> {
-    terminal::enable_raw_mode()?;
-
-    let mut selected = 0;
+    let mut list_state = ListState::default();
+    list_state.select(Some(0));
+    let mut context_scroll: u16 = 0;
 
     loop {
-        clear_screen()?;
+        let selected = list_state.selected().unwrap_or(0);
+        let size = term.terminal.size()?;
+        
+        // Calculate max scroll for context
+        let context_lines = context.lines().count() + 2; // +2 for title
+        let context_height = (size.height / 3).max(8) as usize; // Use top third, min 8 lines
+        let max_context_scroll = context_lines.saturating_sub(context_height - 2) as u16;
 
-        // Display title
-        print_colored(&format!("━━━ {} ━━━", title), Color::Cyan)?;
-        println!("\n");
+        term.draw(|f| {
+            let main_chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Length((size.height / 3).max(8)),  // Context - dynamic, larger
+                    Constraint::Min(10),                            // Main content
+                    Constraint::Length(3),                          // Help
+                ])
+                .split(f.area());
 
-        // Display context (paginated if needed)
-        let wrapped_context = wrap(context, term.width() - 4);
-        for line in wrapped_context.iter().take(10) {
-            println!("{}", line);
-        }
+            // Title and context with scroll support
+            let title_text = format!("━━━ {} ━━━\n\n{}", title, context);
+            let title_widget = Paragraph::new(title_text)
+                .block(Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(Color::Cyan))
+                    .title(if max_context_scroll > 0 { "↑↓ to scroll context" } else { "" }))
+                .wrap(Wrap { trim: true })
+                .scroll((context_scroll, 0));
 
-        println!();
-        print_colored("YOUR OPTIONS:", Color::Yellow)?;
-        println!();
+            f.render_widget(title_widget, main_chunks[0]);
 
-        // Display choices with selection indicator
-        for (idx, (label, _desc, _preview)) in choices.iter().enumerate() {
-            if idx == selected {
-                print_colored(&format!("▶ [{}] {}", idx + 1, label), Color::Cyan)?;
-            } else {
-                println!("  [{}] {}", idx + 1, label);
-            }
-        }
+            // Split middle section into choices and preview
+            let middle_chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
+                .split(main_chunks[1]);
 
-        println!();
+            // Choices list
+            let items: Vec<ListItem> = choices
+                .iter()
+                .enumerate()
+                .map(|(i, (label, _, _))| {
+                    ListItem::new(format!("[{}] {}", i + 1, label))
+                })
+                .collect();
 
-        // Display minimal info for selected choice
-        let (_label, description, preview) = &choices[selected];
-        print_colored("═══ WHAT YOU KNOW ═══", Color::Green)?;
-        println!("\n{}", description);
-        println!("\n{}", preview);
+            let list = List::new(items)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title("YOUR OPTIONS")
+                        .border_style(Style::default().fg(Color::Yellow)),
+                )
+                .highlight_style(
+                    Style::default()
+                        .bg(Color::Cyan)
+                        .fg(Color::Black)
+                        .add_modifier(Modifier::BOLD),
+                )
+                .highlight_symbol("▶ ");
 
-        println!();
-        print_colored("Use ↑↓ to navigate, Enter to decide", Color::DarkGrey)?;
-        print_colored("(Real consequences unknown until after you commit)", Color::DarkGrey)?;
-        io::stdout().flush()?;
+            f.render_stateful_widget(list, middle_chunks[0], &mut list_state);
 
-        // Handle input
+            // Preview panel
+            let (_label, description, preview) = &choices[selected];
+            let preview_text = format!("{}\n\n{}", description, preview);
+
+            let preview_widget = Paragraph::new(preview_text)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title("═══ WHAT YOU KNOW ═══")
+                        .border_style(Style::default().fg(Color::Green)),
+                )
+                .wrap(Wrap { trim: true })
+                .style(Style::default().fg(Color::White));
+
+            f.render_widget(preview_widget, middle_chunks[1]);
+
+            // Help text
+            let help_lines = vec![
+                Line::from("Tab/Shift+Tab: switch focus | ↑↓: navigate/scroll | Enter: decide | q: quit"),
+                Line::from("(Real consequences unknown until after you commit)").style(Style::default().fg(Color::Red)),
+            ];
+
+            let help = Paragraph::new(help_lines)
+                .style(Style::default().fg(Color::DarkGray))
+                .alignment(Alignment::Center)
+                .block(Block::default().borders(Borders::ALL));
+
+            f.render_widget(help, main_chunks[2]);
+        })?;
+
+        // Handle input with context scrolling
         match event::read()? {
-            Event::Key(KeyEvent { code, .. }) => {
-                match code {
-                    KeyCode::Up => {
-                        if selected > 0 {
-                            selected -= 1;
+            Event::Key(KeyEvent {
+                code: KeyCode::Up,
+                kind: KeyEventKind::Press,
+                modifiers,
+                ..
+            }) => {
+                if modifiers.contains(event::KeyModifiers::SHIFT) || max_context_scroll == 0 {
+                    // Scroll choices list
+                    let i = match list_state.selected() {
+                        Some(i) => {
+                            if i == 0 {
+                                choices.len() - 1
+                            } else {
+                                i - 1
+                            }
                         }
-                    }
-                    KeyCode::Down => {
-                        if selected < choices.len() - 1 {
-                            selected += 1;
-                        }
-                    }
-                    KeyCode::Enter => {
-                        break;
-                    }
-                    KeyCode::Char('q') | KeyCode::Esc => {
-                        break;
-                    }
-                    _ => {}
+                        None => 0,
+                    };
+                    list_state.select(Some(i));
+                } else {
+                    // Scroll context up
+                    context_scroll = context_scroll.saturating_sub(1);
                 }
             }
-            Event::Resize(w, h) => {
-                term.update_size(w, h);
+            Event::Key(KeyEvent {
+                code: KeyCode::Down,
+                kind: KeyEventKind::Press,
+                modifiers,
+                ..
+            }) => {
+                if modifiers.contains(event::KeyModifiers::SHIFT) || max_context_scroll == 0 {
+                    // Scroll choices list
+                    let i = match list_state.selected() {
+                        Some(i) => {
+                            if i >= choices.len() - 1 {
+                                0
+                            } else {
+                                i + 1
+                            }
+                        }
+                        None => 0,
+                    };
+                    list_state.select(Some(i));
+                } else {
+                    // Scroll context down
+                    if context_scroll < max_context_scroll {
+                        context_scroll += 1;
+                    }
+                }
+            }
+            Event::Key(KeyEvent {
+                code: KeyCode::Tab,
+                kind: KeyEventKind::Press,
+                ..
+            }) => {
+                // Tab switches focus between context and choices
+                let i = match list_state.selected() {
+                    Some(i) => {
+                        if i >= choices.len() - 1 {
+                            0
+                        } else {
+                            i + 1
+                        }
+                    }
+                    None => 0,
+                };
+                list_state.select(Some(i));
+            }
+            Event::Key(KeyEvent {
+                code: KeyCode::Enter,
+                kind: KeyEventKind::Press,
+                ..
+            }) => {
+                return Ok(selected);
+            }
+            Event::Key(KeyEvent {
+                code: KeyCode::Char('q') | KeyCode::Esc,
+                kind: KeyEventKind::Press,
+                ..
+            }) => {
+                return Ok(selected);
             }
             _ => {}
         }
     }
-
-    terminal::disable_raw_mode()?;
-    Ok(selected)
 }
 
-/// Show the actual outcome after decision is made.
+/// Show decision outcome with formatted panels
 pub fn show_decision_outcome(
     choice_label: &str,
     impact: &DecisionImpact,
     term: &mut Terminal,
 ) -> io::Result<()> {
-    terminal::enable_raw_mode()?;
-
-    clear_screen()?;
-
-    print_colored("═══════════════════════════════════════════", Color::Cyan)?;
-    print_colored("           DECISION OUTCOME", Color::Cyan)?;
-    print_colored("═══════════════════════════════════════════\n", Color::Cyan)?;
-
-    println!("You chose: {}\n", choice_label);
-
-    print_colored("═══ SECURITY IMPACT ═══", Color::Yellow)?;
-    
-    // FIXED: Helper to safely extract risk changes from the HashMap
-    // We map to level_delta because RiskChange is a struct, not an f64.
+    // Helper to extract risk changes
     let get_risk = |v: RiskVector| {
-        impact.risk_delta.changes.get(&v)
+        impact
+            .risk_delta
+            .changes
+            .get(&v)
             .map(|c| c.level_delta)
             .unwrap_or(0.0)
     };
 
-    println!("Data Exposure:    {:+.0}", get_risk(RiskVector::DataExposure));
-    println!("Access Control:   {:+.0}", get_risk(RiskVector::AccessControl));
-    println!("Detection:        {:+.0}", get_risk(RiskVector::Detection));
-    println!("Vendor Risk:      {:+.0}", get_risk(RiskVector::VendorRisk));
-    println!("Insider Threat:   {:+.0}", get_risk(RiskVector::InsiderThreat));
+    let outcome_text = format!(
+        "You chose: {}\n\n\
+         ═══ SECURITY IMPACT ═══\n\
+         Data Exposure:    {:+.0}\n\
+         Access Control:   {:+.0}\n\
+         Detection:        {:+.0}\n\
+         Vendor Risk:      {:+.0}\n\
+         Insider Threat:   {:+.0}\n\n\
+         ═══ BUSINESS IMPACT ═══\n\
+         ARR Change:       ${:+.1}M\n\
+         Velocity Change:  {:+.0}%\n\
+         Churn Change:     {:+.1}%\n\
+         Board Confidence: {:+.0}%\n\n\
+         ═══ AUDIT TRAIL ═══\n\
+         {}",
+        choice_label,
+        get_risk(RiskVector::DataExposure),
+        get_risk(RiskVector::AccessControl),
+        get_risk(RiskVector::Detection),
+        get_risk(RiskVector::VendorRisk),
+        get_risk(RiskVector::InsiderThreat),
+        impact.business_delta.arr_change,
+        impact.business_delta.velocity_change,
+        impact.business_delta.churn_change,
+        impact.business_delta.confidence_change,
+        match impact.audit_trail {
+            crate::core::types::AuditTrail::Clean => "✓ CLEAN - Defensible under scrutiny",
+            crate::core::types::AuditTrail::Flagged => "⚠ FLAGGED - Questionable but not fatal",
+            crate::core::types::AuditTrail::Toxic => "✗ TOXIC - Will be used against you in court",
+        }
+    );
 
-    println!();
-    print_colored("═══ BUSINESS IMPACT ═══", Color::Green)?;
-    println!("ARR Change:       ${:+.1}M", impact.business_delta.arr_change);
-    println!("Velocity Change:  {:+.0}%", impact.business_delta.velocity_change);
-    println!("Churn Change:     {:+.1}%", impact.business_delta.churn_change);
-    println!("Board Confidence: {:+.0}%", impact.business_delta.confidence_change);
+    term.draw(|f| {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(1), Constraint::Length(3)])
+            .split(f.area());
 
-    println!();
-    print_colored("═══ AUDIT TRAIL ═══", Color::Magenta)?;
-    let trail_text = match impact.audit_trail {
-        crate::core::types::AuditTrail::Clean => "✓ CLEAN - Defensible under scrutiny",
-        crate::core::types::AuditTrail::Flagged => "⚠ FLAGGED - Questionable but not fatal",
-        crate::core::types::AuditTrail::Toxic => "✗ TOXIC - Will be used against you in court",
-    };
-    println!("{}", trail_text);
+        let outcome_widget = Paragraph::new(outcome_text)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("═══════════ DECISION OUTCOME ═══════════")
+                    .border_style(Style::default().fg(Color::Cyan)),
+            )
+            .wrap(Wrap { trim: true });
 
-    println!();
-    print_colored("Press Enter to see alternate outcomes...", Color::DarkGrey)?;
-    io::stdout().flush()?;
+        f.render_widget(outcome_widget, chunks[0]);
 
-    wait_for_enter(term)?;
+        let help = Paragraph::new("Press Enter to see alternate outcomes...")
+            .style(Style::default().fg(Color::DarkGray))
+            .alignment(Alignment::Center);
 
-    terminal::disable_raw_mode()?;
+        f.render_widget(help, chunks[1]);
+    })?;
+
+    wait_for_enter()?;
     Ok(())
 }
 
-/// Show alternate reality - what if you chose differently? (with full impacts)
+/// Show alternate outcomes
 pub fn show_alternate_outcomes_with_impacts(
     chosen_idx: usize,
-    choices: &[crate::core::decisions::Choice],
+    choices: &[Choice],
     term: &mut Terminal,
 ) -> io::Result<()> {
-    terminal::enable_raw_mode()?;
+    let mut text_lines = vec![
+        format!("You chose: {}\n", choices[chosen_idx].label),
+        String::from(""),
+    ];
 
-    clear_screen()?;
-
-    print_colored("═══════════════════════════════════════════", Color::Magenta)?;
-    print_colored("        WHAT IF YOU CHOSE DIFFERENTLY?", Color::Magenta)?;
-    print_colored("═══════════════════════════════════════════\n", Color::Magenta)?;
-
-    println!("You chose: {}\n", choices[chosen_idx].label);
-
-    // Show what would have happened with other choices
     for (idx, choice) in choices.iter().enumerate() {
         if idx != chosen_idx {
-            print_colored(&format!("═══ If you had chosen: {} ═══", choice.label), Color::Yellow)?;
-            println!();
+            text_lines.push(format!("═══ If you had chosen: {} ═══", choice.label));
+            text_lines.push(String::from(""));
+            text_lines.push(choice.description.clone());
+            text_lines.push(String::from(""));
+            text_lines.push(String::from("What you knew:"));
 
-            // We need to calculate what the impact would have been
-            // For now, show the description
-            println!("{}", choice.description);
-
-            // Show business preview they saw
-            println!();
-            println!("What you knew:");
             if choice.impact_preview.estimated_arr_change != 0.0 {
-                println!("  Estimated ARR: ${:+.1}M", choice.impact_preview.estimated_arr_change);
+                text_lines.push(format!(
+                    "  Estimated ARR: ${:+.1}M",
+                    choice.impact_preview.estimated_arr_change
+                ));
             }
             if choice.impact_preview.budget_cost != 0.0 {
-                println!("  Budget Cost: ${:.2}M", choice.impact_preview.budget_cost);
+                text_lines.push(format!(
+                    "  Budget Cost: ${:.2}M",
+                    choice.impact_preview.budget_cost
+                ));
             }
             if let Some(weeks) = choice.impact_preview.timeline_weeks {
-                println!("  Timeline: {} weeks", weeks);
+                text_lines.push(format!("  Timeline: {} weeks", weeks));
             }
             if let Some(ref note) = choice.impact_preview.political_note {
-                println!("  Political: {}", note);
+                text_lines.push(format!("  Political: {}", note));
             }
 
-            println!();
+            text_lines.push(String::from(""));
         }
     }
 
-    print_colored("Press Enter to continue with your choice...", Color::DarkGrey)?;
-    io::stdout().flush()?;
+    let alternate_text = text_lines.join("\n");
 
-    wait_for_enter(term)?;
+    term.draw(|f| {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(1), Constraint::Length(3)])
+            .split(f.area());
 
-    terminal::disable_raw_mode()?;
+        let widget = Paragraph::new(alternate_text)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("═══════════ WHAT IF YOU CHOSE DIFFERENTLY? ═══════════")
+                    .border_style(Style::default().fg(Color::Magenta)),
+            )
+            .wrap(Wrap { trim: true })
+            .scroll((0, 0));
+
+        f.render_widget(widget, chunks[0]);
+
+        let help = Paragraph::new("Press Enter to continue with your choice...")
+            .style(Style::default().fg(Color::DarkGray))
+            .alignment(Alignment::Center);
+
+        f.render_widget(help, chunks[1]);
+    })?;
+
+    wait_for_enter()?;
     Ok(())
 }
 
-/// Print colored text
-pub fn print_colored(text: &str, color: Color) -> io::Result<()> {
-    execute!(
-        io::stdout(),
-        SetForegroundColor(color),
-        Print(text),
-        ResetColor,
-        Print("\n")
-    )
-}
+/// Display a status box with game information
+pub fn display_box(title: &str, content: &str, term: &mut Terminal) -> io::Result<()> {
+    term.draw(|f| {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(1), Constraint::Length(3)])
+            .split(f.area());
 
-/// Clear the screen
-pub fn clear_screen() -> io::Result<()> {
-    execute!(
-        io::stdout(),
-        terminal::Clear(ClearType::All),
-        cursor::MoveTo(0, 0)
-    )
-}
+        let widget = Paragraph::new(content)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(title)
+                    .border_style(Style::default().fg(Color::Cyan)),
+            )
+            .wrap(Wrap { trim: true });
 
-/// Wait for Enter key, returning if resized or continued.
-fn wait_for_enter(term: &mut Terminal) -> io::Result<WaitResult> {
-    loop {
-        match event::read()? {
-            Event::Key(KeyEvent { code: KeyCode::Enter, .. }) => return Ok(WaitResult::Continue),
-            Event::Resize(w, h) => {
-                term.update_size(w, h);
-                return Ok(WaitResult::Resized);
-            }
-            _ => {}
-        }
-    }
-}
+        f.render_widget(widget, chunks[0]);
 
-/// Display a box with text
-pub fn display_box(title: &str, content: &str, term: &Terminal) -> io::Result<()> {
-    let width = term.width().min(80) as usize;
-    let border = "═".repeat(width);
+        let help = Paragraph::new("Press Enter to continue...")
+            .style(Style::default().fg(Color::DarkGray))
+            .alignment(Alignment::Center);
 
-    println!("╔{}╗", border);
-    println!("║ {:<width$} ║", title, width = width - 2);
-    println!("╠{}╣", border);
+        f.render_widget(help, chunks[1]);
+    })?;
 
-    let wrapped = wrap(content, width - 4);
-    for line in wrapped {
-        println!("║ {:<width$} ║", line, width = width - 2);
-    }
-
-    println!("╚{}╝", border);
-
-    Ok(())
-}
-
-/// Typewriter effect for dramatic moments
-pub fn typewriter_effect(text: &str, delay_ms: u64) -> io::Result<()> {
-    for ch in text.chars() {
-        print!("{}", ch);
-        io::stdout().flush()?;
-        std::thread::sleep(std::time::Duration::from_millis(delay_ms));
-    }
-    println!();
+    wait_for_enter()?;
     Ok(())
 }
 
 /// Display chapter/turn header
-pub fn display_chapter_header(turn: u32, quarter: u32, phase: &str, term: &Terminal) -> io::Result<()> {
-    clear_screen()?;
+pub fn display_chapter_header(
+    turn: u32,
+    quarter: u32,
+    phase: &str,
+    term: &mut Terminal,
+) -> io::Result<()> {
+    let header_text = format!("TURN {} │ Q{} │ {}", turn, quarter, phase);
 
-    let width = term.width().min(80) as usize;
-    let border = "═".repeat(width);
+    term.draw(|f| {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(5), Constraint::Min(1)])
+            .split(f.area());
 
-    println!("\n╔{}╗", border);
-    println!("║{:^width$}║", format!("TURN {} │ Q{} │ {}", turn, quarter, phase), width = width);
-    println!("╚{}╝\n", border);
+        let header = Paragraph::new(header_text)
+            .style(
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .alignment(Alignment::Center)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(Color::Cyan)),
+            );
 
+        f.render_widget(header, chunks[0]);
+
+        let help = Paragraph::new("Press Enter to continue...")
+            .style(Style::default().fg(Color::DarkGray))
+            .alignment(Alignment::Center);
+
+        f.render_widget(help, chunks[1]);
+    })?;
+
+    wait_for_enter()?;
+    Ok(())
+}
+
+/// Clear screen by redrawing empty frame
+pub fn clear_screen(term: &mut Terminal) -> io::Result<()> {
+    term.clear()
+}
+
+/// Print colored text (deprecated - use ratatui rendering instead)
+pub fn print_colored(_text: &str, _color: crossterm::style::Color) -> io::Result<()> {
+    // No-op for compatibility - use ratatui rendering in new code
+    Ok(())
+}
+
+/// Typewriter effect (deprecated in ratatui context)
+pub fn typewriter_effect(_text: &str, _delay_ms: u64) -> io::Result<()> {
+    // No-op for compatibility
     Ok(())
 }

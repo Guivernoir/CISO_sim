@@ -5,7 +5,7 @@ use colored::*;
 pub fn display_ending(state: &GameState) {
     if let GamePhase::Ended(ending) = &state.phase {
         match ending {
-            Ending::GoldenCSO => display_golden_cso(state),
+            Ending::GoldenCISO => display_golden_ciso(state),
             Ending::LawsuitSurvivor => display_lawsuit_survivor(state),
             Ending::PostBreachCleanup => display_post_breach_cleanup(state),
             Ending::CriminalInvestigation => display_criminal_investigation(state),
@@ -13,9 +13,9 @@ pub fn display_ending(state: &GameState) {
     }
 }
 
-fn display_golden_cso(state: &GameState) {
+fn display_golden_ciso(state: &GameState) {
     println!("\n{}", "═══════════════════════════════════════════════════════════".bright_cyan());
-    println!("{}", "                    ENDING: GOLDEN CSO                     ".bright_cyan().bold());
+    println!("{}", "                    ENDING: GOLDEN CISO                     ".bright_cyan().bold());
     println!("{}", "═══════════════════════════════════════════════════════════\n".bright_cyan());
 
     println!("{}", "LinkedIn Post - Sarah Chen, CEO".white().bold());
@@ -57,7 +57,7 @@ fn display_golden_cso(state: &GameState) {
     println!();
     display_final_stats(state);
     println!();
-    println!("{}", "Achievement Unlocked: Golden CSO (Top 5%)".bright_yellow().bold());
+    println!("{}", "Achievement Unlocked: Golden CISO (Top 5%)".bright_yellow().bold());
     println!("{}", "You survived with credibility intact.".white());
 }
 
@@ -128,9 +128,9 @@ fn display_post_breach_cleanup(state: &GameState) {
     println!();
     println!("Regulators impose ${:.0}M fine after security chief testified that", fine);
     println!("warning signs were ignored for months. Internal documents show");
-    println!("CSO minimized breach scope in initial disclosure.");
+    println!("CISO minimized breach scope in initial disclosure.");
     println!();
-    println!("Class-action lawsuit names former CSO {} personally,", state.player.name.red());
+    println!("Class-action lawsuit names former CISO {} personally,", state.player.name.red());
     println!("alleging gross negligence and breach of fiduciary duty.");
     println!();
     println!("CEO Sarah Chen terminated 'by mutual agreement' yesterday.");
@@ -171,7 +171,7 @@ fn display_post_breach_cleanup(state: &GameState) {
     println!("  'Fractional CISO | Security Consultant'");
     println!();
     println!("No Fortune 500 company will hire you full-time.");
-    println!("Your name is the first result when recruiters Google 'security breach CSO'.");
+    println!("Your name is the first result when recruiters Google 'security breach CISO'.");
     println!();
     println!("Your deposition transcripts are public record.");
     println!();
@@ -200,7 +200,7 @@ fn display_criminal_investigation(state: &GameState) {
     println!("{}", "Former Tech Executive Indicted in Data Breach Cover-Up".bright_black());
     println!();
     
-    println!("A federal grand jury returned an indictment against former CSO {}", state.player.name);
+    println!("A federal grand jury returned an indictment against former CISO {}", state.player.name);
     println!("charging them with securities fraud, wire fraud, and obstruction of justice.");
     println!();
     println!("The indictment alleges that the defendant:");

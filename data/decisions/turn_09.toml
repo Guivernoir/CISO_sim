@@ -1,0 +1,111 @@
+[[decision]]
+turn = 9
+title = "The Merger"
+context = """Your company is acquiring a smaller competitor. Due diligence reveals their security posture is... troubling:
+
+- No security team (outsourced to an MSP)
+- No vulnerability management program
+- Customer database running on MySQL 5.5 (EOL 2018)
+- Admin passwords stored in a shared Google Doc
+- No encryption at rest
+- 3 unpatched critical CVEs in their customer-facing app
+
+Legal found evidence they had a breach 18 months ago that was never disclosed. The CTO at the acquired company claims 'it was minor, just some test accounts.'
+
+The acquisition closes in 60 days. On day 61, their customers become YOUR customers. Their security debt becomes YOUR security debt. Their undisclosed breach becomes YOUR compliance nightmare.
+
+Your options:
+
+1. Demand they fix everything before closing (will delay merger 6 months, board will be furious)
+2. Accept the risk, plan a 90-day post-merger remediation (ship fast, fix later)
+3. Walk away from the acquisition (nuclear option, board already announced it)"""
+
+[[decision.choice]]
+id = "merger_delay"
+label = "Delay until remediated"
+description = "Refuse to close until they fix critical issues. This will delay the acquisition 6 months and piss off everyone, but you won't inherit a disaster."
+
+[decision.choice.impact_preview]
+estimated_arr_change = -2.5
+budget_cost = 0.50
+timeline_weeks = 24
+political_note = "Board already announced the acquisition"
+
+[decision.choice.impact.risk_delta]
+[decision.choice.impact.risk_delta.changes.DataExposure]
+level_delta = -20.0
+description = "Acquired company fixes security before merger"
+
+[decision.choice.impact.risk_delta.changes.VendorRisk]
+level_delta = -15.0
+description = "Clean acquisition with no hidden debt"
+
+[decision.choice.impact.business_delta]
+arr_change = -2.5
+velocity_change = -20.0
+churn_change = 2.0
+confidence_change = -20.0
+
+[decision.choice.impact]
+audit_trail = "Clean"
+budget_impact = -0.50
+
+[[decision.choice]]
+id = "merger_accept"
+label = "Close and remediate post-merger"
+description = "Close on schedule. Take ownership of their security debt. Plan a 90-day sprint to fix everything. Fast but risky - you're inheriting their breach liability."
+
+[decision.choice.impact_preview]
+estimated_arr_change = 3.0
+budget_cost = 1.20
+timeline_weeks = 12
+political_note = "Board gets their acquisition on time"
+
+[decision.choice.impact.risk_delta]
+[decision.choice.impact.risk_delta.changes.DataExposure]
+level_delta = 60.0
+description = "Inherited unencrypted database with breach history"
+
+[decision.choice.impact.risk_delta.changes.AccessControl]
+level_delta = 45.0
+description = "Admin passwords in Google Docs"
+
+[decision.choice.impact.risk_delta.changes.VendorRisk]
+level_delta = 30.0
+description = "Undisclosed breach creates regulatory risk"
+
+[decision.choice.impact.business_delta]
+arr_change = 3.0
+velocity_change = 5.0
+churn_change = 0.0
+confidence_change = 15.0
+
+[decision.choice.impact]
+audit_trail = "Toxic"
+budget_impact = -1.20
+
+[[decision.choice]]
+id = "merger_abort"
+label = "Recommend walking away"
+description = "Advise the board that this acquisition creates unacceptable risk. The undisclosed breach alone could trigger regulatory action. Recommend aborting."
+
+[decision.choice.impact_preview]
+estimated_arr_change = -4.0
+budget_cost = 0.05
+timeline_weeks = 2
+political_note = "Board will see this as security blocking business"
+
+[decision.choice.impact.risk_delta]
+[decision.choice.impact.risk_delta.changes.DataExposure]
+level_delta = 0.0
+description = "No additional risk from avoided acquisition"
+
+[decision.choice.impact.business_delta]
+arr_change = -4.0
+velocity_change = 0.0
+churn_change = 0.0
+confidence_change = -30.0
+
+[decision.choice.impact]
+audit_trail = "Clean"
+budget_impact = -0.05

@@ -1,0 +1,115 @@
+[[decision]]
+turn = 4
+title = "The Compliance Theater"
+context = """Board meeting prep: The audit committee wants an update on SOC 2 compliance. Your compliance officer tells you the bad news.
+
+You have 127 findings from the internal pre-assessment. Most are 'minor' - documentation gaps, policy updates, process improvements. But 6 are critical:
+
+1. Production database access logs are deleted after 30 days (SOC 2 requires 1 year)
+2. No segregation of duties for infrastructure changes (same person who requests can approve)
+3. Vendor risk assessments are 18 months old (should be annual)
+4. Your 'encryption at rest' is AWS default encryption (not customer-managed keys)
+5. Privileged access reviews happen quarterly (should be monthly)
+6. Your incident response plan was last tested in 2022
+
+Your external auditor says you can remediate in 3 months and still get certified on schedule - but only if you go full theater mode:
+
+Option A: Fix everything properly (9 months, $500K, delay certification)
+Option B: Fix the optics (3 months, $150K, get certified but still have real gaps)
+Option C: Challenge the auditor's interpretation (risky, but some findings are debatable)
+
+The board wants that SOC 2 badge. Sales has 5 enterprise deals waiting on it."""
+
+[[decision.choice]]
+id = "compliance_proper"
+label = "Fix everything properly"
+description = "Do it right. Nine months, half a million dollars, but you'll actually be compliant. Delay the certification timeline and explain to the board why shortcuts create liability."
+
+[decision.choice.impact_preview]
+estimated_arr_change = -2.0
+budget_cost = 0.50
+timeline_weeks = 36
+political_note = "Board will question why this wasn't done earlier"
+
+[decision.choice.impact.risk_delta]
+[decision.choice.impact.risk_delta.changes.AccessControl]
+level_delta = -35.0
+description = "Proper segregation of duties and access controls"
+
+[decision.choice.impact.risk_delta.changes.Detection]
+level_delta = -25.0
+description = "Extended log retention and monitoring"
+
+[decision.choice.impact.risk_delta.changes.VendorRisk]
+level_delta = -20.0
+description = "Current vendor risk assessments"
+
+[decision.choice.impact.business_delta]
+arr_change = -2.0
+velocity_change = -10.0
+churn_change = 0.5
+confidence_change = 10.0
+
+[decision.choice.impact]
+audit_trail = "Clean"
+budget_impact = -0.50
+
+[[decision.choice]]
+id = "compliance_theater"
+label = "Fix the optics"
+description = "Make it look good on paper. Implement just enough to pass audit: update documentation, create policies, run some tests. The underlying gaps remain but they're not in the report."
+
+[decision.choice.impact_preview]
+estimated_arr_change = 1.5
+budget_cost = 0.15
+timeline_weeks = 12
+political_note = "Board gets their badge, sales gets their deals"
+
+[decision.choice.impact.risk_delta]
+[decision.choice.impact.risk_delta.changes.AccessControl]
+level_delta = 15.0
+description = "Documented controls that aren't actually enforced"
+
+[decision.choice.impact.risk_delta.changes.Detection]
+level_delta = 10.0
+description = "Logs look good but gaps remain"
+
+[decision.choice.impact.business_delta]
+arr_change = 1.5
+velocity_change = 5.0
+churn_change = 0.0
+confidence_change = 15.0
+
+[decision.choice.impact]
+audit_trail = "Toxic"
+budget_impact = -0.15
+
+[[decision.choice]]
+id = "compliance_challenge"
+label = "Challenge the auditor"
+description = "Push back on findings. Your AWS default encryption IS encryption at rest. Quarterly access reviews are industry standard. Make the auditor re-categorize some 'critical' findings as 'minor.' Risky but faster."
+
+[decision.choice.impact_preview]
+estimated_arr_change = 0.5
+budget_cost = 0.20
+timeline_weeks = 16
+political_note = "Could backfire if auditor doesn't budge"
+
+[decision.choice.impact.risk_delta]
+[decision.choice.impact.risk_delta.changes.AccessControl]
+level_delta = -10.0
+description = "Partial improvements with negotiated scope"
+
+[decision.choice.impact.risk_delta.changes.Detection]
+level_delta = -5.0
+description = "Some logging improvements"
+
+[decision.choice.impact.business_delta]
+arr_change = 0.5
+velocity_change = -5.0
+churn_change = 0.2
+confidence_change = 5.0
+
+[decision.choice.impact]
+audit_trail = "Flagged"
+budget_impact = -0.20

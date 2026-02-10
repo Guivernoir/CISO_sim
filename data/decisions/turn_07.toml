@@ -1,0 +1,100 @@
+[[decision]]
+turn = 7
+title = "The Board Ultimatum"
+context = """Emergency board meeting. They've seen the breach notification headlines. Customers are angry. Two enterprise deals were cancelled. ARR is down.
+
+The board has three demands:
+
+1. Fire your SOC lead (the one who called you at 2AM to report the breach)
+2. Hire a Big 4 consulting firm to 'restore confidence' ($2M retainer)
+3. Issue a public statement that the breach was 'fully contained' and 'no evidence of data misuse'
+
+Your SOC lead is the only reason you caught the breach at all. The Big 4 firm will produce a glossy report and recommend buying their $500K/year managed SOC service. The public statement is... optimistic at best.
+
+Your CEO pulls you aside: 'The board wants a head on a pike. Give them someone or they'll come for yours. We need to show we're taking action.'
+
+Legal adds: 'That public statement is defensible. We have no PROOF of data misuse. Just say it carefully.'
+
+Your integrity score is on the line. So is your job."""
+
+[[decision.choice]]
+id = "board_comply"
+label = "Comply with all demands"
+description = "Fire your SOC lead, hire the consultants, issue the optimistic statement. Sacrifice a loyal employee to save your job and give the board what they want."
+
+[decision.choice.impact_preview]
+estimated_arr_change = 1.0
+budget_cost = 2.0
+timeline_weeks = 4
+political_note = "Appeases board but destroys team morale"
+
+[decision.choice.impact.risk_delta]
+[decision.choice.impact.risk_delta.changes.InsiderThreat]
+level_delta = 30.0
+description = "Team sees you threw someone under the bus"
+
+[decision.choice.impact.risk_delta.changes.Detection]
+level_delta = 20.0
+description = "Lost your best detection capability"
+
+[decision.choice.impact.business_delta]
+arr_change = 1.0
+velocity_change = 0.0
+churn_change = -2.0
+confidence_change = 15.0
+
+[decision.choice.impact]
+audit_trail = "Toxic"
+budget_impact = -2.0
+
+[[decision.choice]]
+id = "board_pushback"
+label = "Push back on all three"
+description = "Refuse to fire your SOC lead. Refuse the consultants. Refuse the misleading statement. Explain to the board that theater won't fix the underlying problems. This might cost you your job."
+
+[decision.choice.impact_preview]
+estimated_arr_change = -1.0
+budget_cost = 0.10
+timeline_weeks = 2
+political_note = "Principled stand but board may remove you"
+
+[decision.choice.impact.risk_delta]
+[decision.choice.impact.risk_delta.changes.Detection]
+level_delta = -10.0
+description = "Kept your best team and their morale"
+
+[decision.choice.impact.business_delta]
+arr_change = -1.0
+velocity_change = 0.0
+churn_change = 1.0
+confidence_change = -25.0
+
+[decision.choice.impact]
+audit_trail = "Clean"
+budget_impact = -0.10
+
+[[decision.choice]]
+id = "board_compromise"
+label = "Compromise: consultants only"
+description = "Keep your SOC lead. Refuse the misleading statement. But agree to hire the consultants as a 'learning opportunity.' Split the difference."
+
+[decision.choice.impact_preview]
+estimated_arr_change = 0.0
+budget_cost = 2.0
+timeline_weeks = 4
+political_note = "Shows willingness to compromise"
+
+[decision.choice.impact.risk_delta]
+[decision.choice.impact.risk_delta.changes.VendorRisk]
+level_delta = 15.0
+description = "Consultants bring vendor dependencies"
+
+[decision.choice.impact.business_delta]
+arr_change = 0.0
+velocity_change = -5.0
+churn_change = 0.0
+confidence_change = 5.0
+
+[decision.choice.impact]
+audit_trail = "Flagged"
+budget_impact = -2.0

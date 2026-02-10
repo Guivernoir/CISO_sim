@@ -1,88 +1,104 @@
-[decision]
-id = "triage_1_patch"
+[[decision]]
 turn = 1
-title = "Initial Triage: Critical Infrastructure"
-is_board_pressure = false
+title = "The Inheritance"
+context = """Your predecessor left you a sprawling mess. The previous CISO 'pursued other opportunities' after a nasty vendor breach exposed 50K customer emails. Legal settled quietly. The board wants 'new leadership with fresh ideas.'
 
-context = """
-You've inherited a security disaster. Your predecessor left without documentation. 
+You're walking into their first sprint planning of Q1. Engineering is pushing to ship a major feature by end of quarter - a new API that lets enterprise customers bulk-import their user data. Marketing has already announced it. Sales has deals contingent on it.
 
-You've discovered:
-• Flat network - every service talks to every service
-• Credentials stored in Slack history
-• No SIEM, no IDS
-• Internet-facing Jenkins server with 47 known CVEs
-• Logging disabled on 60% of systems "to save costs"
+Your security architect pulls you aside: 'The API has no rate limiting, minimal input validation, and uses the admin service account for all operations. The previous CISO approved it because the vendor promised to fix it post-launch. That was 8 months ago.'
 
-Budget allows fixing TWO of four critical issues.
+The API goes live in 3 weeks. What do you do?"""
 
-What do you prioritize?
-"""
+[[decision.choice]]
+id = "inheritance_ship"
+label = "Ship it - Fix it in production"
+description = "Let the feature ship. You're new and don't want to be 'Dr. No' on day one. The vendor will fix it eventually, and you'll implement monitoring to catch abuse. You'll document the risk and get explicit signoff from the CTO."
 
-[[choices]]
-id = "patch_jenkins"
-label = "Patch Jenkins server"
-description = "Prevents remote code execution vulnerability exploited in the wild"
-
-[choices.impact_preview]
-estimated_arr_change = 0.0
-budget_cost = 0.0
-timeline_weeks = 1
-political_note = "Engineering will push back on deployment freeze"
-
-[choices.impact]
-risk_delta = { data_exposure = -15.0, access_control = 0.0, detection = 0.0, vendor_risk = 0.0, insider_threat = 0.0 }
-business_delta = { arr_change = 0.0, velocity_change = -12.0, churn_change = 0.0, confidence_change = 0.0 }
-budget_cost = 0.0
-audit_trail = "Clean"
-
-[[choices]]
-id = "deploy_mfa"
-label = "Deploy company-wide MFA"
-description = "Blocks credential stuffing attacks, industry best practice"
-
-[choices.impact_preview]
-estimated_arr_change = -0.2
-budget_cost = 0.15
+[decision.choice.impact_preview]
+estimated_arr_change = 2.5
+budget_cost = 0.05
 timeline_weeks = 2
-political_note = "Sales will complain about friction"
+political_note = "Builds goodwill with engineering and sales"
 
-[choices.impact]
-risk_delta = { data_exposure = 0.0, access_control = -20.0, detection = 0.0, vendor_risk = 0.0, insider_threat = 0.0 }
-business_delta = { arr_change = -0.2, velocity_change = 0.0, churn_change = 0.0, confidence_change = 0.0 }
+[decision.choice.impact.risk_delta]
+[decision.choice.impact.risk_delta.changes.DataExposure]
+level_delta = 35.0
+description = "Unauthenticated bulk data access with no validation"
+
+[decision.choice.impact.risk_delta.changes.AccessControl]
+level_delta = 25.0
+description = "Admin service account used for all operations"
+
+[decision.choice.impact.risk_delta.changes.Detection]
+level_delta = 15.0
+description = "No rate limiting means abuse is invisible"
+
+[decision.choice.impact.business_delta]
+arr_change = 2.5
+velocity_change = 5.0
+churn_change = 0.0
+confidence_change = 10.0
+
+[decision.choice.impact]
+audit_trail = "Flagged"
+budget_impact = -0.05
+
+[[decision.choice]]
+id = "inheritance_delay"
+label = "Delay for security fixes"
+description = "Block the launch. Insist on rate limiting, input validation, and proper service accounts before shipping. This will delay the feature by 6-8 weeks and piss off sales, but it's the right call."
+
+[decision.choice.impact_preview]
+estimated_arr_change = -1.0
 budget_cost = 0.15
+timeline_weeks = 8
+political_note = "Will anger sales and engineering leadership"
+
+[decision.choice.impact.risk_delta]
+[decision.choice.impact.risk_delta.changes.DataExposure]
+level_delta = -5.0
+description = "Proper input validation prevents injection attacks"
+
+[decision.choice.impact.risk_delta.changes.AccessControl]
+level_delta = -10.0
+description = "Dedicated service account with minimal permissions"
+
+[decision.choice.impact.business_delta]
+arr_change = -1.0
+velocity_change = -15.0
+churn_change = 0.5
+confidence_change = -5.0
+
+[decision.choice.impact]
 audit_trail = "Clean"
+budget_impact = -0.15
 
-[[choices]]
-id = "segment_network"
-label = "Segment production network"
-description = "Limits blast radius of any future breaches"
+[[decision.choice]]
+id = "inheritance_hybrid"
+label = "Ship with runtime monitoring"
+description = "Ship it, but implement aggressive rate limiting and anomaly detection on day one. Build a kill switch you can activate if you see abuse. It's not perfect, but it's pragmatic."
 
-[choices.impact_preview]
-estimated_arr_change = 0.0
-budget_cost = 0.28
-timeline_weeks = 6
-political_note = "Product roadmap delayed 6 weeks"
+[decision.choice.impact_preview]
+estimated_arr_change = 2.0
+budget_cost = 0.25
+timeline_weeks = 3
+political_note = "Compromise position - shows you're reasonable"
 
-[choices.impact]
-risk_delta = { data_exposure = -10.0, access_control = -10.0, detection = 0.0, vendor_risk = 0.0, insider_threat = 0.0 }
-business_delta = { arr_change = 0.0, velocity_change = -15.0, churn_change = 0.0, confidence_change = 0.0 }
-budget_cost = 0.28
-audit_trail = "Clean"
+[decision.choice.impact.risk_delta]
+[decision.choice.impact.risk_delta.changes.DataExposure]
+level_delta = 20.0
+description = "Still vulnerable but monitored"
 
-[[choices]]
-id = "fire_admin"
-label = "Terminate admin with root everywhere"
-description = "Removes highest insider threat immediately"
+[decision.choice.impact.risk_delta.changes.Detection]
+level_delta = -15.0
+description = "Strong monitoring and alerting in place"
 
-[choices.impact_preview]
-estimated_arr_change = 0.0
-budget_cost = 0.0
-timeline_weeks = 1
-political_note = "HR warns of potential wrongful termination lawsuit"
+[decision.choice.impact.business_delta]
+arr_change = 2.0
+velocity_change = 0.0
+churn_change = 0.0
+confidence_change = 5.0
 
-[choices.impact]
-risk_delta = { data_exposure = 0.0, access_control = 10.0, detection = 0.0, vendor_risk = 0.0, insider_threat = -25.0 }
-business_delta = { arr_change = 0.0, velocity_change = -20.0, churn_change = 0.0, confidence_change = 0.0 }
-budget_cost = 0.0
-audit_trail = "Clean"
+[decision.choice.impact]
+audit_trail = "Flagged"
+budget_impact = -0.25

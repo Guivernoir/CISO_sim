@@ -79,7 +79,7 @@ pub enum GamePhase {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Ending {
-    GoldenCSO,           // Top 5%: Nailed it
+    GoldenCISO,           // Top 5%: Nailed it
     LawsuitSurvivor,     // Middle 70%: You made it out alive
     PostBreachCleanup,   // Bottom 25%: Resume update time
     CriminalInvestigation, // Bottom 1%: Lawyer up
@@ -227,7 +227,7 @@ impl GameState {
             turn: 0,
             event_type: EventType::GameStart,
             description: format!(
-                "{} appointed as CSO of {}. Previous CSO '{}' left to 'pursue other opportunities'. \
+                "{} appointed as CISO of {}. Previous CISO '{}' left to 'pursue other opportunities'. \
                 Exit interview mentions: 'Board expectations unrealistic', 'Budget insufficient', \
                 'Nobody listened until after the breach'.",
                 player.name, player.company_name,
@@ -290,7 +290,7 @@ impl GameState {
                 name: "Alex Thompson".to_string(),
                 personality: BoardPersonality::TechnicallyMinded,
                 current_priority: BoardPriority::RiskMitigation,
-                satisfaction: 50.0,  // Skeptical of new CSO
+                satisfaction: 50.0,  // Skeptical of new CISO
                 influence: 75.0,
             },
             BoardMember {
@@ -544,14 +544,14 @@ impl GameState {
             return Ending::CriminalInvestigation;
         }
 
-        // Golden CSO - top 5%
+        // Golden CISO - top 5%
         if critical_incidents == 0 
            && narrative_score > 85.0 
            && business_health 
            && self.risk.total_exposure < 150.0 
            && compliance_score > 90.0 
            && self.board.iter().all(|b| b.satisfaction > 70.0) {
-            return Ending::GoldenCSO;
+            return Ending::GoldenCISO;
         }
 
         // Post-breach cleanup - bottom 25%

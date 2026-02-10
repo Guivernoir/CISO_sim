@@ -200,7 +200,14 @@ pub struct DecisionFactory;
 
 impl DecisionFactory {
     /// Generate decisions based on game state
-    pub fn generate_decision(state: &GameState) -> Option<Decision> {
+    /// First tries to load from DecisionLoader (TOML files), then falls back to hardcoded decisions
+    pub fn generate_decision(state: &GameState, loader: &crate::core::config::DecisionLoader) -> Option<Decision> {
+        // First, try to get decision from TOML files
+        if let Some(decision) = loader.get_decision(state.turn) {
+            return Some(decision.clone());
+        }
+        
+        // Fall back to hardcoded decisions if TOML not found
         match state.turn {
             1 => Some(Self::turn_1_inheritance_decision()),
             2 => Some(Self::turn_2_triage_decision(state)),
@@ -220,11 +227,11 @@ impl DecisionFactory {
             id: "turn_1_inheritance".to_string(),
             turn: 1,
             title: "The Inheritance".to_string(),
-            context: "You've just started as CSO. Your first security review reveals: \n\
+            context: "You've just started as CISO. Your first security review reveals: \n\
                      - No MFA on admin accounts\n\
                      - 847 unpatched servers\n\
                      - SOC2 audit in 60 days\n\
-                     - Previous CSO's documentation: 'Good luck'\n\n\
+                     - Previous CISO's documentation: 'Good luck'\n\n\
                      The CEO is asking: 'What's your plan?'".to_string(),
             choices: vec![
                 Choice {
@@ -424,7 +431,7 @@ impl DecisionFactory {
             turn: 3,
             title: "Quick Win vs. Foundation".to_string(),
             context: "The board wants to see 'visible progress'. Your team needs proper tooling and process.\n\
-                     Classic CSO dilemma: theater or substance?".to_string(),
+                     Classic CISO dilemma: theater or substance?".to_string(),
             choices: vec![
                 Choice {
                     id: "security_theater".to_string(),

@@ -1,0 +1,100 @@
+[[decision]]
+turn = 3
+title = "The Insider"
+context = """Your SIEM alerts on unusual database access. An engineer in the customer success team downloaded 25,000 customer records at 11 PM on a Friday. The query was manual - not part of any automated job.
+
+You pull the logs. Same engineer has been exfiltrating customer data in small batches for 3 weeks. Email, phone numbers, purchase history. Always late at night, always manual queries.
+
+You call the engineer's manager. Turns out the engineer gave notice 2 weeks ago - joining a competitor. Their last day is in 1 week.
+
+HR wants to walk them out immediately. Legal wants to preserve evidence for a lawsuit. Sales wants to know if customer data was stolen before they panic-email every account. The CEO wants to know why your DLP didn't catch this.
+
+Your DLP did catch it - you got 14 alerts. You just didn't have anyone reviewing SIEM alerts because you're understaffed. That 'monitoring budget' you requested last quarter was denied.
+
+What do you do?"""
+
+[[decision.choice]]
+id = "insider_terminate"
+label = "Immediate termination + lawsuit"
+description = "Walk them out immediately, preserve evidence, sue for breach of contract. Go public with 'security incident' notification to affected customers within 72 hours as required by GDPR."
+
+[decision.choice.impact_preview]
+estimated_arr_change = -1.5
+budget_cost = 0.30
+timeline_weeks = 4
+political_note = "Transparent but will cause customer panic"
+
+[decision.choice.impact.risk_delta]
+[decision.choice.impact.risk_delta.changes.InsiderThreat]
+level_delta = -20.0
+description = "Strong deterrent signal to other employees"
+
+[decision.choice.impact.risk_delta.changes.Detection]
+level_delta = -10.0
+description = "Post-incident review leads to better monitoring"
+
+[decision.choice.impact.business_delta]
+arr_change = -1.5
+velocity_change = 0.0
+churn_change = 3.0
+confidence_change = -15.0
+
+[decision.choice.impact]
+audit_trail = "Clean"
+budget_impact = -0.30
+
+[[decision.choice]]
+id = "insider_quiet"
+label = "Quiet termination"
+description = "Walk them out, make them sign an NDA, don't notify customers. You have no proof the data was used maliciously. Treat it as a 'personnel matter' and move on."
+
+[decision.choice.impact_preview]
+estimated_arr_change = 0.0
+budget_cost = 0.05
+timeline_weeks = 1
+political_note = "Avoids customer panic and bad press"
+
+[decision.choice.impact.risk_delta]
+[decision.choice.impact.risk_delta.changes.InsiderThreat]
+level_delta = 10.0
+description = "No deterrent - other employees see you didn't act"
+
+[decision.choice.impact.business_delta]
+arr_change = 0.0
+velocity_change = 0.0
+churn_change = 0.0
+confidence_change = 5.0
+
+[decision.choice.impact]
+audit_trail = "Toxic"
+budget_impact = -0.05
+
+[[decision.choice]]
+id = "insider_monitor"
+label = "Let them finish their notice period"
+description = "Don't tip your hand. Revoke database access quietly, let them work out their notice doing busy work, monitor everything they do. Gather evidence. If they try to exfiltrate more, you catch them red-handed."
+
+[decision.choice.impact_preview]
+estimated_arr_change = 0.0
+budget_cost = 0.10
+timeline_weeks = 2
+political_note = "Sophisticated response, but risky if data leaks"
+
+[decision.choice.impact.risk_delta]
+[decision.choice.impact.risk_delta.changes.InsiderThreat]
+level_delta = 25.0
+description = "Allows continued access while under investigation"
+
+[decision.choice.impact.risk_delta.changes.Detection]
+level_delta = -15.0
+description = "Forces you to implement better real-time monitoring"
+
+[decision.choice.impact.business_delta]
+arr_change = 0.0
+velocity_change = 0.0
+churn_change = 0.0
+confidence_change = 0.0
+
+[decision.choice.impact]
+audit_trail = "Flagged"
+budget_impact = -0.10
